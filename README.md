@@ -24,6 +24,10 @@ service for other photobooth businesses later.
 Requires Python 3.10+ and `ffmpeg` installed on your system (`apt install
 ffmpeg` / `brew install ffmpeg`).
 
+The audio file can be a plain track (mp3/wav/m4a/...) or the audio track of
+a video file — e.g. an OBS `.mkv` recording of a song playing — ffmpeg
+extracts the audio for analysis regardless of container.
+
 ```bash
 pip install -r requirements.txt
 ```
