@@ -20,6 +20,26 @@ def collect_photos(photos_dir: Path, order: str) -> list[Path]:
     return photos
 
 
+def _format_mmss(seconds: float) -> str:
+    seconds = max(0, round(seconds))
+    m, s = divmod(seconds, 60)
+    return f"{m}:{s:02d}"
+
+
+def write_sync_guide(output_path: Path, offset: float, song_name: str | None) -> tuple[Path, str]:
+    label = song_name or "the reference track"
+    start = _format_mmss(offset)
+    message = (
+        f'This video is silent and was cut to the beat of "{label}".\n'
+        f'To sync it: add "{label}" as audio in Instagram/TikTok and set its start '
+        f"point to {start} — the video's cuts will then line up with the song's "
+        f"beat from that point on.\n"
+    )
+    guide_path = output_path.with_suffix(".sync.txt")
+    guide_path.write_text(message)
+    return guide_path, message
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="aftermovie",
@@ -29,13 +49,45 @@ def parse_args(argv=None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("photos_dir", type=Path, help="Folder of photos (jpg/png/webp)")
-    parser.add_argument("audio_path", type=Path, help="Music track (mp3/wav/m4a/...)")
+    parser.add_argument(
+        "audio_path",
+        type=Path,
+        help=(
+            "Audio to analyze for beat timing (mp3/wav/m4a/...). Can be a track you have "
+            "rights to embed, or a personal reference recording of a song you don't "
+            "(use with --mute so it never gets baked into the export)."
+        ),
+    )
     parser.add_argument("output_path", type=Path, help="Output file, e.g. aftermovie.mp4")
     parser.add_argument(
         "--beats-per-cut",
         type=int,
         default=2,
         help="Change photo every N beats (default: 2). 1=frantic, 4=slower/cinematic.",
+    )
+    parser.add_argument(
+        "--mute",
+        action="store_true",
+        help=(
+            "Export without any audio track. Use this when audio_path is only a "
+            "personal reference recording of a song you don't have rights to "
+            "distribute — prints/saves a sync guide instead of embedding audio."
+        ),
+    )
+    parser.add_argument(
+        "--offset",
+        type=float,
+        default=0.0,
+        help=(
+            "Song-time in seconds where audio_path's recording begins (e.g. you "
+            "started recording at the 0:47 mark of the real track). Only used to "
+            "compute the --mute sync guide; does not affect beat detection."
+        ),
+    )
+    parser.add_argument(
+        "--song-name",
+        default=None,
+        help='Song title for the printed sync guide, e.g. "Song Title - Artist".',
     )
     parser.add_argument(
         "--max-duration",
@@ -84,8 +136,22 @@ def main(argv=None) -> None:
         photos, info.cut_times, total_duration, TARGET_W, TARGET_H, zoom_end=args.zoom
     )
     print(f"Rendering {len(clips)} segments -> {args.output_path} ...")
-    render(clips, args.audio_path, total_duration, args.output_path, fps=args.fps)
-    print(f"Done: {args.output_path}")
+
+    if args.mute:
+        render(clips, args.output_path, fps=args.fps)
+        guide_path, message = write_sync_guide(args.output_path, args.offset, args.song_name)
+        print(f"Done (silent): {args.output_path}")
+        print(message)
+        print(f"(sync guide also saved to {guide_path})")
+    else:
+        render(
+            clips,
+            args.output_path,
+            fps=args.fps,
+            audio_path=args.audio_path,
+            total_duration=total_duration,
+        )
+        print(f"Done: {args.output_path}")
 
 
 if __name__ == "__main__":

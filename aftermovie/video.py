@@ -69,23 +69,35 @@ def build_clips(
 
 def render(
     clips: list[CompositeVideoClip],
-    audio_path: Path,
-    total_duration: float,
     output_path: Path,
     fps: int = 30,
+    audio_path: Path | None = None,
+    total_duration: float | None = None,
 ):
+    """Render clips to a video file.
+
+    If audio_path is None, the output is silent — used for the --mute
+    workflow, where the reference track was only used to derive beat
+    timing and must not be baked into (and distributed with) the export.
+    """
     video = concatenate_videoclips(clips, method="chain")
-    audio = AudioFileClip(str(audio_path)).subclipped(0, total_duration)
-    video = video.with_audio(audio)
+    audio = None
+    write_kwargs = {}
+    if audio_path is not None:
+        audio = AudioFileClip(str(audio_path)).subclipped(0, total_duration or video.duration)
+        video = video.with_audio(audio)
+        write_kwargs["audio_codec"] = "aac"
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     video.write_videofile(
         str(output_path),
         fps=fps,
         codec="libx264",
-        audio_codec="aac",
         preset="medium",
         threads=4,
         logger=None,
+        **write_kwargs,
     )
     video.close()
-    audio.close()
+    if audio is not None:
+        audio.close()

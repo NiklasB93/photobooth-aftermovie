@@ -52,8 +52,45 @@ Options:
 | `--zoom Z` | `1.08` | Max Ken Burns zoom factor per photo. |
 | `--fps N` | `30` | Output frame rate. |
 | `--order {sorted,shuffle}` | `sorted` | Photo sequence — alphabetical by filename, or shuffled. |
+| `--mute` | off | Export with no audio track (see "trending songs" below). |
+| `--offset S` | `0` | Song-time in seconds where `audio_path` begins — only affects the `--mute` sync guide. |
+| `--song-name` | — | Song title to include in the `--mute` sync guide. |
 
 Output is a 1080x1920 (9:16) H.264 MP4, ready to upload.
+
+## Using a trending/newest song you don't have rights to embed
+
+There's no reliable database of exact beat-grid timestamps for arbitrary
+songs anymore — Spotify permanently killed its Audio Analysis API for new
+apps in Nov 2024, and BPM-only databases (GetSongBPM, Tunebat, etc.) give
+you a tempo number but not *where* beat 1 falls, which isn't enough for
+frame-accurate cuts, especially for something released last week.
+
+The workaround: get a short **reference recording** of the real song (e.g.
+play it from Spotify/YouTube and record ~20-30s on your phone), note the
+song-time you started recording at, and run:
+
+```bash
+python -m aftermovie ./event-photos ./phone-recording.m4a ./aftermovie.mp4 \
+    --mute \
+    --offset 47 \
+    --song-name "Song Title - Artist"
+```
+
+This analyzes the recording for beat timing exactly as normal, but the
+exported video has **no audio track** — safe to post without owning the
+song. It also prints (and saves alongside the video as `<output>.sync.txt`)
+a one-line instruction:
+
+> Add "Song Title - Artist" as audio in Instagram/TikTok and set its start
+> point to 0:47 — the video's cuts will then line up with the song's beat
+> from that point on.
+
+You (or the person posting) then add the real, officially-licensed audio
+directly in Instagram/TikTok's own picker and trim it to that start point —
+the app supports setting a custom start point when adding trending audio.
+The reference recording itself is never embedded or distributed; it's only
+used locally to work out the timing.
 
 ## Smoke-testing without real assets
 
