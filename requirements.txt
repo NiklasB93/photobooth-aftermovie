@@ -1,0 +1,5 @@
+librosa>=0.10
+moviepy>=2.0
+numpy
+pillow
+soundfile
