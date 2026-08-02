@@ -3,3 +3,5 @@ moviepy>=2.0
 numpy
 pillow
 soundfile
+# pinned <5: opencv-python-headless 5.0.0 doesn't expose cv2.CascadeClassifier
+opencv-python-headless>=4.8,<5

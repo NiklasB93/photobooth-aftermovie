@@ -1,8 +1,8 @@
 # photobooth-aftermovie
 
-Turns a folder of event photos into a vertical, beat-synced video for
-TikTok/Reels/Shorts: the image cuts to the next photo on the beat of the
-music, with a subtle Ken Burns zoom on each photo.
+Turns a folder of event photos into a beat-synced video: the image cuts to
+the next photo on the beat of the music, with either a face-aware pan (for
+vertical/phone output) or a subtle Ken Burns zoom.
 
 Built for [Magic Flamingo Events](https://magic-flamingo-fotobox.de) as a
 same-day social recap for events, and as a base for a possible standalone
@@ -14,10 +14,33 @@ service for other photobooth businesses later.
    ([`librosa`](https://librosa.org)).
 2. Picks a cut every N beats (`--beats-per-cut`, default 2) to decide how
    long each photo stays on screen.
-3. Cycles through your photos in order, center-cropping each to fill a
-   1080x1920 canvas and applying a slow zoom in/out.
+3. Cycles through your photos in order, building each into a clip per the
+   chosen `--mode` (see below).
 4. Concatenates the segments and lays the original audio underneath
    ([`moviepy`](https://zulko.github.io/moviepy/) + `ffmpeg`).
+
+## Output modes
+
+Most event photos are horizontal. Cropping one down to a vertical 9:16
+frame with a blind center-crop regularly cuts people out of frame if
+they're not dead-center in the original shot. `--mode` controls how that's
+handled:
+
+- **`vertical`** (1080x1920, default — TikTok/Reels/Shorts): detects faces
+  ([OpenCV](https://opencv.org) Haar cascade, bundled in this repo, no
+  model download) and either centers the crop on them statically, or — if
+  they're spread wider than one crop window can show — slowly **pans**
+  across them instead of zooming. The pan is clamped so it never drifts
+  into empty background beyond the detected faces (with `--face-margin`
+  clearance on each side), and if no face is detected, it falls back to the
+  previous plain centered crop + zoom.
+- **`horizontal`** (1920x1080 — for a website): shows the **whole photo,
+  uncropped**, letterboxed onto a blurred/darkened copy of the same photo
+  as a backdrop instead of plain bars.
+
+Face detection works best on frontal, reasonably well-lit faces — typical
+for posed photobooth shots. It'll miss profile shots or bad lighting, in
+which case that segment just uses the static center-crop fallback.
 
 ## Setup
 
@@ -42,6 +65,7 @@ Example:
 
 ```bash
 python -m aftermovie ./event-photos ./track.mp3 ./aftermovie.mp4 \
+    --mode vertical \
     --beats-per-cut 2 \
     --max-duration 45 \
     --zoom 1.1
@@ -51,16 +75,18 @@ Options:
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--mode {vertical,horizontal}` | `vertical` | See "Output modes" above. |
+| `--face-margin F` | `0.15` | Vertical mode only: clearance to keep between faces and the frame edge (fraction of frame width) when panning. |
 | `--beats-per-cut N` | `2` | Change photo every N beats. `1` = frantic, `4` = slower/cinematic. |
 | `--max-duration S` | `60` | Trim output to at most S seconds. |
-| `--zoom Z` | `1.08` | Max Ken Burns zoom factor per photo. |
+| `--zoom Z` | `1.08` | Max Ken Burns zoom factor per photo (segments that pan don't also zoom). |
 | `--fps N` | `30` | Output frame rate. |
 | `--order {sorted,shuffle}` | `sorted` | Photo sequence — alphabetical by filename, or shuffled. |
 | `--mute` | off | Export with no audio track (see "trending songs" below). |
 | `--offset S` | `0` | Song-time in seconds where `audio_path` begins — only affects the `--mute` sync guide. |
 | `--song-name` | — | Song title to include in the `--mute` sync guide. |
 
-Output is a 1080x1920 (9:16) H.264 MP4, ready to upload.
+Output is an H.264 MP4, ready to upload.
 
 ## Using a trending/newest song you don't have rights to embed
 
@@ -105,6 +131,18 @@ end to end without needing real event photos or a licensed music track:
 ```bash
 python examples/generate_test_assets.py
 python -m aftermovie examples/test_assets/photos examples/test_assets/click_120bpm.wav examples/test_assets/out.mp4
+```
+
+## Tests
+
+`tests/test_pan_offsets.py` covers the pan-window math directly (no
+photos/faces needed — pure input/output on coordinates): no-face fallback,
+faces that fit in one window (static, centered), faces spread wide enough
+to require panning, and edge-clamping so a pan never requests pixels
+outside the actual image.
+
+```bash
+python3 tests/test_pan_offsets.py
 ```
 
 ## Music licensing

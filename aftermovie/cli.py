@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from .beats import detect_beats
-from .video import TARGET_H, TARGET_W, build_clips, render
+from .video import MODE_DIMS, build_clips, render
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -59,6 +59,26 @@ def parse_args(argv=None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("output_path", type=Path, help="Output file, e.g. aftermovie.mp4")
+    parser.add_argument(
+        "--mode",
+        choices=list(MODE_DIMS),
+        default="vertical",
+        help=(
+            "vertical (1080x1920, default): cropped for phone/TikTok/Reels, with "
+            "face-aware panning instead of a blind center-crop. "
+            "horizontal (1920x1080): uncropped, for a website — photos are shown in "
+            "full, letterboxed onto a blurred backdrop."
+        ),
+    )
+    parser.add_argument(
+        "--face-margin",
+        type=float,
+        default=0.15,
+        help=(
+            "In vertical mode, how much clearance (as a fraction of frame width) to "
+            "keep between detected faces and the frame edge when panning (default: 0.15)."
+        ),
+    )
     parser.add_argument(
         "--beats-per-cut",
         type=int,
@@ -133,9 +153,15 @@ def main(argv=None) -> None:
     )
 
     clips = build_clips(
-        photos, info.cut_times, total_duration, TARGET_W, TARGET_H, zoom_end=args.zoom
+        photos,
+        info.cut_times,
+        total_duration,
+        mode=args.mode,
+        zoom_end=args.zoom,
+        face_margin=args.face_margin,
     )
-    print(f"Rendering {len(clips)} segments -> {args.output_path} ...")
+    w, h = MODE_DIMS[args.mode]
+    print(f"Rendering {len(clips)} segments ({args.mode}, {w}x{h}) -> {args.output_path} ...")
 
     if args.mute:
         render(clips, args.output_path, fps=args.fps)
