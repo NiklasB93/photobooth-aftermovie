@@ -83,7 +83,31 @@ def parse_args(argv=None) -> argparse.Namespace:
         "--beats-per-cut",
         type=int,
         default=2,
-        help="Change photo every N beats (default: 2). 1=frantic, 4=slower/cinematic.",
+        help=(
+            "Fixed cadence: change photo every N beats (default: 2). "
+            "1=frantic, 4=slower/cinematic. Ignored if --adaptive is set."
+        ),
+    )
+    parser.add_argument(
+        "--adaptive",
+        action="store_true",
+        help=(
+            "Vary the cut cadence with the song's own energy instead of a fixed "
+            "--beats-per-cut: faster cuts on high-energy stretches (chorus/drop), "
+            "slower on calmer ones (verse/intro)."
+        ),
+    )
+    parser.add_argument(
+        "--adaptive-min",
+        type=int,
+        default=1,
+        help="With --adaptive: fastest cadence, in beats per cut, on the highest-energy parts (default: 1).",
+    )
+    parser.add_argument(
+        "--adaptive-max",
+        type=int,
+        default=4,
+        help="With --adaptive: slowest cadence, in beats per cut, on the calmest parts (default: 4).",
     )
     parser.add_argument(
         "--mute",
@@ -140,12 +164,20 @@ def main(argv=None) -> None:
         raise SystemExit(f"{args.audio_path} not found")
     if args.beats_per_cut < 1:
         raise SystemExit("--beats-per-cut must be >= 1")
+    if args.adaptive_min < 1:
+        raise SystemExit("--adaptive-min must be >= 1")
 
     photos = collect_photos(args.photos_dir, args.order)
     print(f"Found {len(photos)} photos in {args.photos_dir}")
 
-    print("Detecting beats...")
-    info = detect_beats(str(args.audio_path), beats_per_cut=args.beats_per_cut)
+    print("Detecting beats..." + (" (adaptive cadence)" if args.adaptive else ""))
+    info = detect_beats(
+        str(args.audio_path),
+        beats_per_cut=args.beats_per_cut,
+        adaptive=args.adaptive,
+        adaptive_min=args.adaptive_min,
+        adaptive_max=args.adaptive_max,
+    )
     total_duration = min(info.duration, args.max_duration)
     print(
         f"Tempo ~{info.tempo:.1f} BPM, {len(info.cut_times)} candidate cuts, "

@@ -13,11 +13,29 @@ service for other photobooth businesses later.
 1. Loads the audio track and detects its tempo/beat timestamps
    ([`librosa`](https://librosa.org)).
 2. Picks a cut every N beats (`--beats-per-cut`, default 2) to decide how
-   long each photo stays on screen.
+   long each photo stays on screen — or, with `--adaptive`, varies that
+   cadence with the song's own energy (see below).
 3. Cycles through your photos in order, building each into a clip per the
    chosen `--mode` (see below).
 4. Concatenates the segments and lays the original audio underneath
    ([`moviepy`](https://zulko.github.io/moviepy/) + `ffmpeg`).
+
+## Adaptive cut cadence
+
+By default (`--beats-per-cut`), the photo changes at one fixed rate for
+the entire song. `--adaptive` instead follows the song's actual energy —
+computed from librosa's onset-strength envelope, averaged per beat and
+normalized against the track's own 10th/90th-percentile range — and cuts
+faster (`--adaptive-min` beats, default 1) during high-energy stretches
+like a chorus/drop, and slower (`--adaptive-max` beats, default 4) during
+calmer ones like a verse/intro. It reacts to the energy at each beat as it
+goes (no lookahead), so transitions land near section boundaries rather
+than exactly on them — still a noticeably better feel than one constant
+rate for a whole song with real dynamic range.
+
+```bash
+python -m aftermovie ./event-photos ./track.mp3 ./aftermovie.mp4 --adaptive
+```
 
 ## Output modes
 
@@ -77,7 +95,10 @@ Options:
 |---|---|---|
 | `--mode {vertical,horizontal}` | `vertical` | See "Output modes" above. |
 | `--face-margin F` | `0.15` | Vertical mode only: clearance to keep between faces and the frame edge (fraction of frame width) when panning. |
-| `--beats-per-cut N` | `2` | Change photo every N beats. `1` = frantic, `4` = slower/cinematic. |
+| `--beats-per-cut N` | `2` | Fixed cadence: change photo every N beats. `1` = frantic, `4` = slower/cinematic. Ignored if `--adaptive` is set. |
+| `--adaptive` | off | Vary the cut cadence with the song's own energy instead of a fixed cadence — see below. |
+| `--adaptive-min N` | `1` | With `--adaptive`: fastest cadence (beats/cut) on the highest-energy parts. |
+| `--adaptive-max N` | `4` | With `--adaptive`: slowest cadence (beats/cut) on the calmest parts. |
 | `--max-duration S` | `60` | Trim output to at most S seconds. |
 | `--zoom Z` | `1.08` | Max Ken Burns zoom factor per photo (segments that pan don't also zoom). |
 | `--fps N` | `30` | Output frame rate. |
