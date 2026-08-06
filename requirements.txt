@@ -3,5 +3,6 @@ moviepy>=2.0
 numpy
 pillow
 soundfile
-# pinned <5: opencv-python-headless 5.0.0 doesn't expose cv2.CascadeClassifier
+# pinned <5: opencv-python-headless 5.0.0 is missing cv2.CascadeClassifier
+# AND cv2.dnn.readNetFromCaffe (checked directly) - both broken, not just one
 opencv-python-headless>=4.8,<5

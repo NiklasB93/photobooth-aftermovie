@@ -45,20 +45,25 @@ they're not dead-center in the original shot. `--mode` controls how that's
 handled:
 
 - **`vertical`** (1080x1920, default — TikTok/Reels/Shorts): detects faces
-  ([OpenCV](https://opencv.org) Haar cascade, bundled in this repo, no
-  model download) and either centers the crop on them statically, or — if
-  they're spread wider than one crop window can show — slowly **pans**
-  across them instead of zooming. The pan is clamped so it never drifts
-  into empty background beyond the detected faces (with `--face-margin`
-  clearance on each side), and if no face is detected, it falls back to the
-  previous plain centered crop + zoom.
+  ([OpenCV](https://opencv.org) DNN face detector, a small SSD model
+  vendored in this repo — no runtime model download) and either centers the
+  crop on them statically, or — if they're spread wider than one crop
+  window can show — slowly **pans** across them instead of zooming. The pan
+  is clamped so it never drifts into empty background beyond the detected
+  faces (with `--face-margin` clearance on each side), and if no face is
+  detected, it falls back to the previous plain centered crop + zoom.
 - **`horizontal`** (1920x1080 — for a website): shows the **whole photo,
   uncropped**, letterboxed onto a blurred/darkened copy of the same photo
   as a backdrop instead of plain bars.
 
-Face detection works best on frontal, reasonably well-lit faces — typical
-for posed photobooth shots. It'll miss profile shots or bad lighting, in
-which case that segment just uses the static center-crop fallback.
+Face detection handles tilted/angled heads and varied expressions well
+(this repo originally used a Haar cascade, which missed a rotated head
+entirely in testing — switched to this DNN model after confirming it
+catches that case). Heavy occlusion — sunglasses, an oversized prop
+covering much of the face — can still defeat it; that's an inherent limit
+of appearance-based face detection, not something any detector fully
+solves. A missed face just uses the static center-crop fallback / stays
+unobscured under `--face-privacy`.
 
 ## Face privacy (`--face-privacy`)
 
@@ -67,7 +72,7 @@ before it's cropped/panned/zoomed, so the effect moves naturally with the
 rest of the frame instead of being pasted on afterward:
 
 - `blur` — a soft, feathered-edge Gaussian blur over each face (padded to
-  cover hair/forehead/chin, not just the tight cascade box).
+  cover hair/forehead/chin, not just the tight detection box).
 - `emoji` — a drawn smiley face over each face, sized to fully cover it.
 - `none` (default) — off.
 
@@ -75,9 +80,12 @@ rest of the frame instead of being pasted on afterward:
 python -m aftermovie ./event-photos ./track.mp3 ./aftermovie.mp4 --face-privacy blur
 ```
 
-Uses the same face detection as the vertical-mode panning, so it has the
-same limitation: frontal, reasonably well-lit faces only — a missed
-profile face won't be obscured.
+**Given this exists for data protection, treat it as best-effort, not a
+guarantee** — uses the same face detection as the vertical-mode panning
+(see "Output modes" above for what it handles well vs. its limits, mainly
+heavy occlusion). Spot-check the output before relying on it for actual
+privacy compliance, especially on photos with props/sunglasses covering
+much of a face.
 
 ## Logo outro (`--logo`)
 
