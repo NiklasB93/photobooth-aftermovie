@@ -1,0 +1,203 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1b1b22;
+  color: #eee;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #26262f;
+  border-bottom: 1px solid #37374a;
+}
+
+.topbar h1 {
+  font-size: 1.1rem;
+  margin: 0;
+  flex: 1;
+}
+
+.upload-btn, #exportBtn {
+  background: #ff4081;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+#exportBtn:disabled {
+  background: #55555f;
+  cursor: not-allowed;
+}
+
+.layout {
+  display: flex;
+  height: calc(100vh - 57px);
+}
+
+.thumbs {
+  width: 160px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #202028;
+  border-right: 1px solid #37374a;
+  flex-shrink: 0;
+}
+
+.thumb {
+  position: relative;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.thumb.selected {
+  border-color: #ff4081;
+}
+
+.thumb img {
+  width: 100%;
+  display: block;
+}
+
+.thumb .thumb-label {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.55);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: #202028;
+  border-bottom: 1px solid #37374a;
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar .hint {
+  color: #999;
+  margin-left: auto;
+}
+
+.canvas-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 20px;
+  touch-action: none;
+}
+
+.empty-hint {
+  color: #777;
+}
+
+#photoImg {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+#regionsLayer {
+  position: absolute;
+}
+
+.region {
+  position: absolute;
+  border: 2px solid #ff4081;
+  border-radius: 6px;
+  cursor: move;
+  touch-action: none;
+}
+
+.region.mode-blur {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.region.mode-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 205, 30, 0.85);
+  font-size: 0; /* the emoji glyph size is set inline based on region size */
+}
+
+.region.mode-emoji .emoji-glyph {
+  pointer-events: none;
+}
+
+.region .region-delete {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #26262f;
+  border: 1px solid #ff4081;
+  color: #fff;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.region .region-mode-toggle {
+  position: absolute;
+  bottom: -12px;
+  left: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #26262f;
+  border: 1px solid #ff4081;
+  color: #fff;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.region .region-resize {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ff4081;
+  cursor: nwse-resize;
+  border: 2px solid #26262f;
+}

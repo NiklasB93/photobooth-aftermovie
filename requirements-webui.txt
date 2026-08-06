@@ -1,0 +1,4 @@
+# Only needed for the local face-privacy review UI (aftermovie/webui/).
+# The core CLI (python -m aftermovie ...) doesn't need Flask, hence the
+# separate file: pip install -r requirements.txt -r requirements-webui.txt
+flask

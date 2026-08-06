@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photobooth Face Privacy Editor</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Face Privacy Editor</h1>
+  <label class="upload-btn">
+    + Add photos
+    <input type="file" id="fileInput" accept="image/*" multiple hidden>
+  </label>
+  <button id="exportBtn" disabled>Export all (.zip)</button>
+</header>
+
+<div class="layout">
+  <aside class="thumbs" id="thumbs">
+    <p class="empty-hint">Add photos to get started.</p>
+  </aside>
+
+  <main class="editor">
+    <div class="editor-toolbar">
+      <span>New region mode:</span>
+      <label><input type="radio" name="newRegionMode" value="blur" checked> Blur</label>
+      <label><input type="radio" name="newRegionMode" value="emoji"> Emoji</label>
+      <span class="hint">Drag on the photo to add a region. Drag a region to move it, use the corner to resize, click × to remove.</span>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <p class="empty-hint" id="editorEmptyHint">Nothing selected yet.</p>
+      <img id="photoImg" draggable="false" hidden>
+      <div id="regionsLayer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -87,6 +87,38 @@ heavy occlusion). Spot-check the output before relying on it for actual
 privacy compliance, especially on photos with props/sunglasses covering
 much of a face.
 
+### Manual review/editing UI
+
+`--face-privacy` on the command line applies to every detected face with no
+way to fix a miss or a false positive. For photos going out individually
+(not through the video pipeline) — e.g. picking a few shots for a social
+post — `aftermovie/webui/` is a local browser tool for that:
+
+```bash
+pip install -r requirements.txt -r requirements-webui.txt
+python -m aftermovie.webui.app
+# open http://127.0.0.1:5050
+```
+
+Add multiple photos, review the auto-detected faces (same detector as
+`--face-privacy`), and adjust by hand — drag to move, drag the corner to
+resize, drag on empty space to add a region the detector missed, × to
+remove a false positive, and a per-region toggle to switch that one region
+between blur and emoji (so you can mix both in one photo). "Export all"
+downloads a `.zip` with the real blur/emoji baked in at full resolution —
+the on-screen blur is a live CSS preview, the export re-renders with the
+same PIL-based `blur_faces`/`emoji_faces` the CLI uses, so what you get
+matches what you saw.
+
+This is a local, single-user tool as-is (an in-memory store keyed to one
+Flask process — restarting it loses anything not yet exported). It's built
+as a browser UI over a local server specifically so it *could* later run as
+a real (multi-user, persistent storage, authenticated) cloud service — e.g.
+folded into the photobooth website — without a rewrite, but that jump isn't
+done here: no auth, no persistence, and the Flask dev server itself warns
+it's not for production use. Treat the current version as good for "on my
+laptop, on my LAN, one person at a time."
+
 ## Logo outro (`--logo`)
 
 `--logo path/to/logo.png` appends a closing card after the main content:
