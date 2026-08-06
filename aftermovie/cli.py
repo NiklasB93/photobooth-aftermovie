@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 
 from .beats import detect_beats
-from .video import MODE_DIMS, build_clips, render
+from .outro import build_outro_clip
+from .video import COMPRESSION_PRESETS, FACE_PRIVACY_MODES, MODE_DIMS, build_clips, render
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -152,6 +153,43 @@ def parse_args(argv=None) -> argparse.Namespace:
         default="sorted",
         help="Photo sequence: alphabetical by filename, or shuffled (default: sorted).",
     )
+    parser.add_argument(
+        "--face-privacy",
+        choices=FACE_PRIVACY_MODES,
+        default="none",
+        help=(
+            "Obscure detected faces for data protection: 'blur' (soft, feathered-edge "
+            "blur) or 'emoji' (a drawn smiley over each face). Default 'none'. Applied "
+            "to the source photo before cropping/panning/zoom, so it moves naturally "
+            "with the rest of the frame."
+        ),
+    )
+    parser.add_argument(
+        "--logo",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a logo image (PNG with transparency recommended) to show as a "
+            "closing card after the main content, centered on a blurred still of the "
+            "video's last frame."
+        ),
+    )
+    parser.add_argument(
+        "--logo-duration",
+        type=float,
+        default=2.5,
+        help="How long the logo closing card is shown, in seconds (default: 2.5).",
+    )
+    parser.add_argument(
+        "--compress",
+        choices=list(COMPRESSION_PRESETS),
+        default="high",
+        help=(
+            "Output compression tier: 'high' (default, unchanged from before), "
+            "'web' (noticeably smaller, minimal visible quality loss), 'small' "
+            "(much smaller, e.g. for messaging apps with size limits)."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -166,6 +204,8 @@ def main(argv=None) -> None:
         raise SystemExit("--beats-per-cut must be >= 1")
     if args.adaptive_min < 1:
         raise SystemExit("--adaptive-min must be >= 1")
+    if args.logo is not None and not args.logo.is_file():
+        raise SystemExit(f"--logo {args.logo} not found")
 
     photos = collect_photos(args.photos_dir, args.order)
     print(f"Found {len(photos)} photos in {args.photos_dir}")
@@ -191,12 +231,21 @@ def main(argv=None) -> None:
         mode=args.mode,
         zoom_end=args.zoom,
         face_margin=args.face_margin,
+        face_privacy=args.face_privacy,
     )
     w, h = MODE_DIMS[args.mode]
+
+    if args.logo is not None:
+        print(f"Adding logo outro ({args.logo_duration}s) from {args.logo} ...")
+        last_frame = clips[-1].get_frame(max(0.0, clips[-1].duration - 0.05))
+        clips.append(
+            build_outro_clip(args.logo, w, h, args.logo_duration, background_frame=last_frame)
+        )
+
     print(f"Rendering {len(clips)} segments ({args.mode}, {w}x{h}) -> {args.output_path} ...")
 
     if args.mute:
-        render(clips, args.output_path, fps=args.fps)
+        render(clips, args.output_path, fps=args.fps, compression=args.compress)
         guide_path, message = write_sync_guide(args.output_path, args.offset, args.song_name)
         print(f"Done (silent): {args.output_path}")
         print(message)
@@ -207,7 +256,7 @@ def main(argv=None) -> None:
             args.output_path,
             fps=args.fps,
             audio_path=args.audio_path,
-            total_duration=total_duration,
+            compression=args.compress,
         )
         print(f"Done: {args.output_path}")
 

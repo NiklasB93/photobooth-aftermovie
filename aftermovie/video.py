@@ -20,15 +20,35 @@ import numpy as np
 from moviepy import CompositeVideoClip, ImageClip, concatenate_videoclips, AudioFileClip
 from PIL import Image, ImageEnhance, ImageFilter
 
-from .faces import detect_face_bbox
+from .faces import detect_faces, union_bbox
+from .privacy import blur_faces, emoji_faces
 
 MODE_DIMS = {
     "vertical": (1080, 1920),
     "horizontal": (1920, 1080),
 }
 
+FACE_PRIVACY_MODES = ("none", "blur", "emoji")
+
+# crf: lower = higher quality/bigger file. "high" reproduces libx264's own
+# default (23) - i.e. --compress high changes nothing about existing output
+# quality, it's the other two tiers that are new, smaller-file options.
+COMPRESSION_PRESETS = {
+    "high": {"crf": "23", "preset": "medium"},
+    "web": {"crf": "26", "preset": "slow"},
+    "small": {"crf": "31", "preset": "slow"},
+}
+
 # Backward-compatible names (vertical mode was previously the only mode).
 TARGET_W, TARGET_H = MODE_DIMS["vertical"]
+
+
+def _apply_face_privacy(img: Image.Image, boxes: list[tuple[int, int, int, int]], mode: str) -> Image.Image:
+    if mode == "blur":
+        return blur_faces(img, boxes)
+    if mode == "emoji":
+        return emoji_faces(img, boxes)
+    return img
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:
@@ -92,17 +112,26 @@ def _build_vertical_segment(
     zoom_end: float,
     zoom_in: bool,
     face_margin: float,
+    face_privacy: str = "none",
 ) -> CompositeVideoClip:
     img = Image.open(image_path).convert("RGB")
     src_w, src_h = img.size
+
+    try:
+        raw_boxes = detect_faces(np.array(img))
+    except Exception:
+        raw_boxes = []
+    raw_bbox = union_bbox(raw_boxes)
+
+    # Privacy is baked into the source pixels before scaling/panning/zoom,
+    # using face positions detected on the *original* image above - so the
+    # pan itself still tracks real face locations even once they're hidden.
+    img = _apply_face_privacy(img, raw_boxes, face_privacy)
+
     scale = max(w / src_w, h / src_h)
     scaled_w, scaled_h = round(src_w * scale), round(src_h * scale)
     scaled_img = img.resize((scaled_w, scaled_h), Image.LANCZOS)
 
-    try:
-        raw_bbox = detect_face_bbox(np.array(img))
-    except Exception:
-        raw_bbox = None
     face_bbox_scaled = None
     if raw_bbox is not None:
         left, top, right, bottom = raw_bbox
@@ -130,8 +159,18 @@ def _build_vertical_segment(
     return _zoom_clip_from_frame(np.array(cropped), duration, w, h, zoom_end, zoom_in)
 
 
-def _contain_with_blur_backdrop(image_path: Path, w: int, h: int) -> np.ndarray:
+def _contain_with_blur_backdrop(
+    image_path: Path, w: int, h: int, face_privacy: str = "none"
+) -> np.ndarray:
     img = Image.open(image_path).convert("RGB")
+
+    if face_privacy != "none":
+        try:
+            boxes = detect_faces(np.array(img))
+        except Exception:
+            boxes = []
+        img = _apply_face_privacy(img, boxes, face_privacy)
+
     src_w, src_h = img.size
 
     bg_scale = max(w / src_w, h / src_h)
@@ -152,9 +191,15 @@ def _contain_with_blur_backdrop(image_path: Path, w: int, h: int) -> np.ndarray:
 
 
 def _build_horizontal_segment(
-    image_path: Path, duration: float, w: int, h: int, zoom_end: float, zoom_in: bool
+    image_path: Path,
+    duration: float,
+    w: int,
+    h: int,
+    zoom_end: float,
+    zoom_in: bool,
+    face_privacy: str = "none",
 ) -> CompositeVideoClip:
-    frame = _contain_with_blur_backdrop(image_path, w, h)
+    frame = _contain_with_blur_backdrop(image_path, w, h, face_privacy)
     return _zoom_clip_from_frame(frame, duration, w, h, zoom_end, zoom_in)
 
 
@@ -165,6 +210,7 @@ def build_clips(
     mode: str = "vertical",
     zoom_end: float = 1.08,
     face_margin: float = 0.15,
+    face_privacy: str = "none",
 ) -> list[CompositeVideoClip]:
     """Turn cut timestamps + a photo pool into a sequence of clips.
 
@@ -172,6 +218,8 @@ def build_clips(
     """
     if mode not in MODE_DIMS:
         raise ValueError(f"mode must be one of {list(MODE_DIMS)}, got {mode!r}")
+    if face_privacy not in FACE_PRIVACY_MODES:
+        raise ValueError(f"face_privacy must be one of {FACE_PRIVACY_MODES}, got {face_privacy!r}")
     w, h = MODE_DIMS[mode]
 
     boundaries = [t for t in cut_times if t < total_duration] + [total_duration]
@@ -185,11 +233,13 @@ def build_clips(
         zoom_in = i % 2 == 0
         if mode == "vertical":
             clips.append(
-                _build_vertical_segment(photo, seg_duration, w, h, zoom_end, zoom_in, face_margin)
+                _build_vertical_segment(
+                    photo, seg_duration, w, h, zoom_end, zoom_in, face_margin, face_privacy
+                )
             )
         else:
             clips.append(
-                _build_horizontal_segment(photo, seg_duration, w, h, zoom_end, zoom_in)
+                _build_horizontal_segment(photo, seg_duration, w, h, zoom_end, zoom_in, face_privacy)
             )
     if not clips:
         raise ValueError("No segments produced — check cut_times/total_duration.")
@@ -201,19 +251,29 @@ def render(
     output_path: Path,
     fps: int = 30,
     audio_path: Path | None = None,
-    total_duration: float | None = None,
+    compression: str = "high",
 ):
     """Render clips to a video file.
 
     If audio_path is None, the output is silent — used for the --mute
     workflow, where the reference track was only used to derive beat
     timing and must not be baked into (and distributed with) the export.
+
+    Audio (if any) plays for as long as both the final video and the source
+    track allow. If a logo outro clip was appended to `clips`, the music
+    naturally continues under it (up to however much of the source track
+    exists) rather than cutting off abruptly at the main content's end.
     """
+    if compression not in COMPRESSION_PRESETS:
+        raise ValueError(f"compression must be one of {list(COMPRESSION_PRESETS)}, got {compression!r}")
+    settings = COMPRESSION_PRESETS[compression]
+
     video = concatenate_videoclips(clips, method="chain")
     audio = None
     write_kwargs = {}
     if audio_path is not None:
-        audio = AudioFileClip(str(audio_path)).subclipped(0, total_duration or video.duration)
+        audio = AudioFileClip(str(audio_path))
+        audio = audio.subclipped(0, min(video.duration, audio.duration))
         video = video.with_audio(audio)
         write_kwargs["audio_codec"] = "aac"
 
@@ -222,9 +282,10 @@ def render(
         str(output_path),
         fps=fps,
         codec="libx264",
-        preset="medium",
+        preset=settings["preset"],
         threads=4,
         logger=None,
+        ffmpeg_params=["-crf", settings["crf"], "-movflags", "+faststart"],
         **write_kwargs,
     )
     video.close()

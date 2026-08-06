@@ -60,6 +60,50 @@ Face detection works best on frontal, reasonably well-lit faces — typical
 for posed photobooth shots. It'll miss profile shots or bad lighting, in
 which case that segment just uses the static center-crop fallback.
 
+## Face privacy (`--face-privacy`)
+
+For data protection, `--face-privacy` can obscure every detected face
+before it's cropped/panned/zoomed, so the effect moves naturally with the
+rest of the frame instead of being pasted on afterward:
+
+- `blur` — a soft, feathered-edge Gaussian blur over each face (padded to
+  cover hair/forehead/chin, not just the tight cascade box).
+- `emoji` — a drawn smiley face over each face, sized to fully cover it.
+- `none` (default) — off.
+
+```bash
+python -m aftermovie ./event-photos ./track.mp3 ./aftermovie.mp4 --face-privacy blur
+```
+
+Uses the same face detection as the vertical-mode panning, so it has the
+same limitation: frontal, reasonably well-lit faces only — a missed
+profile face won't be obscured.
+
+## Logo outro (`--logo`)
+
+`--logo path/to/logo.png` appends a closing card after the main content:
+your logo (transparent-background PNG recommended — padding baked into the
+source file is auto-cropped so sizing is based on the actual visible mark)
+centered on a blurred, dimmed still of the video's last frame, fading in
+from black. `--logo-duration` controls how long it's shown (default 2.5s).
+If the main content has audio, it continues playing under the outro rather
+than cutting off abruptly, for as long as the source track has left.
+
+```bash
+python -m aftermovie ./event-photos ./track.mp3 ./aftermovie.mp4 --logo ./logo.png --logo-duration 3
+```
+
+## Compression (`--compress`)
+
+`--compress {high,web,small}` controls the output encoding tier (all use
+H.264 + `+faststart` for progressive playback):
+
+| Tier | CRF | Use case |
+|---|---|---|
+| `high` (default) | 23 | Matches the previous unconfigured default — no change unless you opt in. |
+| `web` | 26 | Noticeably smaller, minimal visible quality loss — good default for social/web upload. |
+| `small` | 31 | Much smaller, e.g. for messaging apps with attachment size limits. |
+
 ## Setup
 
 Requires Python 3.10+ and `ffmpeg` installed on your system (`apt install
@@ -106,6 +150,10 @@ Options:
 | `--mute` | off | Export with no audio track (see "trending songs" below). |
 | `--offset S` | `0` | Song-time in seconds where `audio_path` begins — only affects the `--mute` sync guide. |
 | `--song-name` | — | Song title to include in the `--mute` sync guide. |
+| `--face-privacy {none,blur,emoji}` | `none` | Obscure detected faces — see "Face privacy" below. |
+| `--logo PATH` | — | Append a logo closing card — see "Logo outro" below. |
+| `--logo-duration S` | `2.5` | How long the logo card is shown. |
+| `--compress {high,web,small}` | `high` | Output encoding tier — see "Compression" below. |
 
 Output is an H.264 MP4, ready to upload.
 
