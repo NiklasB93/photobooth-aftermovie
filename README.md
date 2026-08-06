@@ -113,11 +113,49 @@ matches what you saw.
 This is a local, single-user tool as-is (an in-memory store keyed to one
 Flask process — restarting it loses anything not yet exported). It's built
 as a browser UI over a local server specifically so it *could* later run as
-a real (multi-user, persistent storage, authenticated) cloud service — e.g.
-folded into the photobooth website — without a rewrite, but that jump isn't
-done here: no auth, no persistence, and the Flask dev server itself warns
-it's not for production use. Treat the current version as good for "on my
-laptop, on my LAN, one person at a time."
+a real cloud service — e.g. folded into the photobooth website — without a
+rewrite. It's a step closer to that now (see "Deploying to Cloud Run"
+below), but still has no auth and no durable storage: anything not yet
+exported is lost if the container restarts. Treat it as "one person at a
+time," not multi-tenant.
+
+### Deploying to Cloud Run
+
+`Dockerfile` (repo root) packages just the webui — not the CLI, which needs
+`ffmpeg`/`librosa`/`moviepy` and is meant to run locally, not as a service —
+behind `gunicorn` instead of Flask's dev server.
+
+```bash
+gcloud run deploy photobooth-face-privacy \
+  --source . \
+  --region europe-west1 \
+  --memory 1Gi \
+  --max-instances 1 \
+  --allow-unauthenticated   # or omit + set up IAM, see caveat below
+```
+
+**`--max-instances 1` is not just a cost setting here, it's required for
+correctness.** Uploaded photos live in an in-memory dict on the Flask app
+object (see the module docstring in `aftermovie/webui/app.py`) — the
+Dockerfile already pins `gunicorn` to one worker process precisely so that
+memory stays consistent within an instance, but Cloud Run can still run
+*multiple instances* in parallel under load, each with its own separate
+memory. Two instances means an upload can land on one and an export request
+on the other, 404ing on a photo that "should" exist. `--max-instances 1`
+keeps everything on one instance so this can't happen — at the cost of no
+horizontal scaling, which is fine for a single-user tool but would need
+fixing (e.g. moving photo storage to Cloud Storage or a database) before
+this becomes a real multi-user service.
+
+**`--allow-unauthenticated` is a real tradeoff, not a default to accept
+blindly**: this tool has zero authentication of its own, so an
+unauthenticated Cloud Run service is reachable by anyone with the URL, and
+the photos people upload could contain guests' faces before they're
+anonymized. For anything beyond quick personal testing, prefer Cloud Run's
+IAM-based access instead (omit `--allow-unauthenticated`, grant
+`roles/run.invoker` to your own account, and authenticate requests — e.g.
+`gcloud auth print-identity-token` for testing, or Identity-Aware Proxy for
+browser access) rather than leaving it open.
 
 ## Logo outro (`--logo`)
 

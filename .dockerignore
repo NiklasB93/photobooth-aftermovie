@@ -1,0 +1,9 @@
+.git
+__pycache__
+*.pyc
+examples/test_assets
+tests
+*.mp4
+*.mov
+.venv
+venv
